@@ -1,4 +1,9 @@
 <?
+/**
+ * author Sergey Khrystenko
+ * Файл установщик модуля
+ * здесь происходит первоначальная установка модуля
+ */
 IncludeModuleLangFile(__FILE__);
 Class itcube_dynamica extends CModule
 {
@@ -22,7 +27,7 @@ Class itcube_dynamica extends CModule
 		$this->PARTNER_URI = GetMessage("itcube.dynamica_PARTNER_URI");
 	}
 
-	function InstallDB($arParams = array())
+	function InstallDB($arParams = array()) //создаем в БД опции модуля и присваиваем им первоначальные значения
 	{
         COption::SetOptionString(self::MODULE_ID, "api_token", "");
         COption::SetOptionString(self::MODULE_ID, "project_id", "");
@@ -32,24 +37,15 @@ Class itcube_dynamica extends CModule
         return true;
 	}
 
-	function UnInstallDB($arParams = array())
+	function UnInstallDB($arParams = array()) //удаляем опции модуля
 	{
         COption::RemoveOption(self::MODULE_ID);
         return true;
 	}
 
-	function InstallAgents()
+	function InstallAgents() //установка агента битрикса для отправки статистики с ошибкой
 	{
         global $DB;
-        /*CAgent::AddAgent(
-            "CItcubeDynamyca::sendStatistics();",
-            self::MODULE_ID,
-            "N",
-            86400,
-            date( $DB->DateFormatToPHP(CSite::GetDateFormat("FULL")), mktime(11, 30, 0, date("n"), date("j"), date("Y") ) ),
-            "Y",
-            date( $DB->DateFormatToPHP(CSite::GetDateFormat("FULL")), mktime(11, 30, 0, date("n"), date("j"), date("Y") ) )
-        );*/
         CAgent::AddAgent(
             "CItcubeDynamyca::sendIfError();",
             self::MODULE_ID,
@@ -59,13 +55,13 @@ Class itcube_dynamica extends CModule
 		return true;
 	}
 
-	function UnInstallAgents()
+	function UnInstallAgents() //удаление всех агентов
 	{
         CAgent::RemoveModuleAgents(self::MODULE_ID);
 		return true;
 	}
 
-	function InstallFiles($arParams = array())
+	function InstallFiles($arParams = array()) //копирование нужных файлов, в частности файла для cron задачи
 	{
         if( !is_dir($_SERVER["DOCUMENT_ROOT"].'/bitrix/php_interface/') ){
             mkdir($_SERVER["DOCUMENT_ROOT"].'/bitrix/php_interface/', 0777, true);
@@ -77,7 +73,7 @@ Class itcube_dynamica extends CModule
 		return true;
 	}
 
-	function UnInstallFiles()
+	function UnInstallFiles() //удаление всех файлов, созданных модулем с сайта
 	{
         unlink($_SERVER["DOCUMENT_ROOT"].'/upload/dynamica_error.txt');
         unlink($_SERVER["DOCUMENT_ROOT"].'/upload/dynamica_ids.txt');

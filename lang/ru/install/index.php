@@ -1,4 +1,8 @@
 <?
+/**
+ * author Sergey Khrystenko
+ * языковой файл
+ */
 $MESS["itcube.dynamica_MODULE_NAME"] = "Модуль статистики DYNAMICA";
 $MESS["itcube.dynamica_MODULE_DESC"] = "Модуль статистики DYNAMICA";
 $MESS["itcube.dynamica_PARTNER_NAME"] = "ItCube";

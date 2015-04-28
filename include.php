@@ -1,15 +1,16 @@
 <?
+/**
+ * author Sergey Khrystenko
+ * файл логики работы модуля
+ * логика отправки статистики на сервер
+ */
 IncludeModuleLangFile(__FILE__);
-//include_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_before.php");
 
 /**
  * Class CItcubeDynamyca
  */
 Class CItcubeDynamyca
 {
-    /**
-     *
-     */
     const MODULE_ID = 'itcube.dynamica';
     /**
      * @var bool|null|string
@@ -57,27 +58,32 @@ Class CItcubeDynamyca
     private $fileFirstExecPath;
 
     /**
-     *
+     * конструктор класса
      */
     public function __construct(){
-        $this->enableModule      = COption::GetOptionString(self::MODULE_ID, "activate_module");
-        $this->apiToken          = COption::GetOptionString(self::MODULE_ID, "api_token");
-        $this->projectID         = COption::GetOptionString(self::MODULE_ID, "project_id");
-        $this->periodCount       = COption::GetOptionString(self::MODULE_ID, "period_count", "10");
-        $this->periodType        = COption::GetOptionString(self::MODULE_ID, "period_type", "day");
-        $this->apiUrlData        = 'http://dynamica.cc/api/v1/projects/'.$this->projectID.'/values';
-        $this->apiUrlForecast    = 'http://dynamica.cc/api/v1/projects/'.$this->projectID.'/forecasts';
-        $this->fileErrorPath     = $_SERVER["DOCUMENT_ROOT"].'/upload/dynamica_error.txt';
-        $this->fileIDsPath       = $_SERVER["DOCUMENT_ROOT"].'/upload/dynamica_ids.txt';
-        $this->fileFirstExecPath = $_SERVER["DOCUMENT_ROOT"].'/upload/dynamica_firstexec.txt';
-        $this->fileTimePath      = $_SERVER["DOCUMENT_ROOT"].'/upload/dynamica_lastexec.txt';
+        $this->enableModule      = COption::GetOptionString(self::MODULE_ID, "activate_module"); //включен ли модуль
+        $this->apiToken          = COption::GetOptionString(self::MODULE_ID, "api_token"); //апи токен из статистики
+        $this->projectID         = COption::GetOptionString(self::MODULE_ID, "project_id"); //ид проекта из статистики
+        $this->periodCount       = COption::GetOptionString(self::MODULE_ID, "period_count", "10"); //период расчета прогноза
+        $this->periodType        = COption::GetOptionString(self::MODULE_ID, "period_type", "day"); //период расчета прогноза
+        $this->apiUrlData        = 'http://dynamica.cc/api/v1/projects/'.$this->projectID.'/values'; //урл для отправки товаров
+        $this->apiUrlForecast    = 'http://dynamica.cc/api/v1/projects/'.$this->projectID.'/forecasts'; //урл для отправки прогноза
+        $this->fileErrorPath     = $_SERVER["DOCUMENT_ROOT"].'/upload/dynamica_error.txt'; //файл с ошибочными отправками товаров
+        $this->fileIDsPath       = $_SERVER["DOCUMENT_ROOT"].'/upload/dynamica_ids.txt'; //файл с ИД обработанных заказов за день
+        $this->fileFirstExecPath = $_SERVER["DOCUMENT_ROOT"].'/upload/dynamica_firstexec.txt'; //файл предназначеный для товаров после установки модуля, чтобы не положить сервер
+        $this->fileTimePath      = $_SERVER["DOCUMENT_ROOT"].'/upload/dynamica_lastexec.txt'; //файл со временем последнего запуска модуля
     }
 
+    /**
+     * @param $name
+     * @return mixed
+     */
     public function __get($name){
         return $this->{$name};
     }
 
     /**
+     * функция выборки товаров из заказов
      * @return array
      */
     public function prepareArr(){
@@ -117,11 +123,11 @@ Class CItcubeDynamyca
             }
         }
 
-        $db_sales = $CSaleOrder->GetList(array(), $arFilter);
+        $db_sales = $CSaleOrder->GetList(array(), $arFilter); //выбираем сначала все заказы
         while ($ar_sales = $db_sales->Fetch()) {
             $ordersIds[] = $ar_sales["ID"];
 
-            $dbBasketItems = $CSaleBasket->GetList(
+            $dbBasketItems = $CSaleBasket->GetList( //потом выбираем из заказов все товары
                 array(),
                 array(
                     "ORDER_ID" => $ar_sales["ID"]
@@ -137,7 +143,7 @@ Class CItcubeDynamyca
 
                 $name = mb_convert_encoding($arItems["NAME"], "UTF-8");
 
-                $arTovar = $CCatalogProduct->GetList(
+                $arTovar = $CCatalogProduct->GetList( //получаем реальных ИД товара для формирования массива
                     array(),
                     array("ELEMENT_NAME" => $name),
                     false,
@@ -168,6 +174,7 @@ Class CItcubeDynamyca
     }
 
     /**
+     * отправка данных на сервер статистики
      * @param $data_string
      * @return mixed
      */
@@ -190,6 +197,7 @@ Class CItcubeDynamyca
     }
 
     /**
+     * отправка на сервер запроса на просчет прогноза
      * @return mixed
      */
     public function sendCurlForecast(){
@@ -218,15 +226,18 @@ Class CItcubeDynamyca
         return $header["http_code"];
     }
 
-    public function sendStatistics(){
+    /**
+     * @return bool
+     */
+    public function sendStatistics(){ //функция отправки статистики
         global $DB;
         $CSite    = new CSite();
         $dateFull = date( $DB->DateFormatToPHP($CSite->GetDateFormat("FULL")) );
         if( $this->enableModule == 'Y' && $this->apiToken != '' && $this->projectID != '' ){
-            $arr = $this->prepareArr();
+            $arr = $this->prepareArr(); //получаем массив всех товаров
 
             if( !empty($arr) ) {
-                foreach ($arr as $key => $val) {
+                foreach ($arr as $key => $val) { //формируем его в правильную структуру для отправки
                     $data = array();
 
                     $data["item"] = array(
@@ -235,14 +246,13 @@ Class CItcubeDynamyca
                     );
                     $data["values"] = $val["ITEMS"];
 
-                    //$statusCode = $this->sendCurlData(json_encode($data,JSON_UNESCAPED_UNICODE));
-                    $statusCode = $this->sendCurlData($data);
+                    $statusCode = $this->sendCurlData($data); //отправляем данные
 
                     if( $statusCode == 201 ){
                         unset($arr[$key]);
                     }
                 }
-                $this->sendCurlForecast();
+                $this->sendCurlForecast(); //отправляем запрос на прогноз
 
                 if( count($arr) > 0 ){
                     if( file_exists($this->fileErrorPath) ){
@@ -259,6 +269,9 @@ Class CItcubeDynamyca
         return true;
     }
 
+    /**
+     * функция выборки данных и их записи в файл при первом созранении параметров модуля
+     */
     public function firstSave(){
         CModule::IncludeModule("sale");
         CModule::IncludeModule("catalog");
@@ -319,6 +332,10 @@ Class CItcubeDynamyca
         );
     }
 
+    /**
+     * функция для повторной отправки данных если произошла ошибка
+     * @return string
+     */
     public static function sendIfError(){
         $stat = new CItcubeDynamyca();
         if( file_exists($stat->fileErrorPath) && $stat->enableModule == 'Y' && $stat->apiToken != '' && $stat->projectID != '' ){
@@ -353,6 +370,10 @@ Class CItcubeDynamyca
         return 'CItcubeDynamyca::sendIfError();';
     }
 
+    /**
+     * функция для постепенной отправки данных в первый раз по агенту раз в 10 минут, чтобы не положить сервер
+     * @return string
+     */
     public static function sendFirstTime(){
         $stat = new CItcubeDynamyca();
         $cnt  = 0;
